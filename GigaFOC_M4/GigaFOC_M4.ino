@@ -4,16 +4,43 @@
 #include <SPI.h>
 
 #include <SimpleFOC.h>
-#include <SimpleFOCDrivers.h>
-#include <encoders/MT6701/MagneticSensorMT6701SSI.h>
 
-BLDCDriver3PWM drivers[] = {
-  BLDCDriver3PWM(PIN_U_M1, PIN_V_M1, PIN_W_M1, PIN_EN_M1),
-  BLDCDriver3PWM(PIN_U_M2, PIN_V_M2, PIN_W_M2, PIN_EN_M2),
-  BLDCDriver3PWM(PIN_U_M3, PIN_V_M3, PIN_W_M3, PIN_EN_M3),
-  BLDCDriver3PWM(PIN_U_M4, PIN_V_M4, PIN_W_M4, PIN_EN_M4),
-  BLDCDriver3PWM(PIN_U_M5, PIN_V_M5, PIN_W_M5, PIN_EN_M5)
+#include <vector>
+
+std::vector<int> usedMotors = {0, 2, 3, 4};
+
+#ifdef DRIVER_MBED
+#include "mbed_driver.h"
+MbedDriver3PWM drivers[] = {
+  MbedDriver3PWM(PIN_U_M1, PIN_V_M1, PIN_W_M1, PIN_EN_M1),
+  MbedDriver3PWM(PIN_U_M2, PIN_V_M2, PIN_W_M2, PIN_EN_M2),
+  MbedDriver3PWM(PIN_U_M3, PIN_V_M3, PIN_W_M3, PIN_EN_M3),
+  MbedDriver3PWM(PIN_U_M4, PIN_V_M4, PIN_W_M4, PIN_EN_M4),
+  MbedDriver3PWM(PIN_U_M5, PIN_V_M5, PIN_W_M5, PIN_EN_M5)
 };
+#endif
+
+#ifdef DRIVER_STM32
+#include "stm32_driver.h"
+GigaBLDCDriver3PWM drivers[] = {
+  GigaBLDCDriver3PWM(PIN_U_M1, PIN_V_M1, PIN_W_M1, PIN_EN_M1),
+  GigaBLDCDriver3PWM(PIN_U_M2, PIN_V_M2, PIN_W_M2, PIN_EN_M2),
+  GigaBLDCDriver3PWM(PIN_U_M3, PIN_V_M3, PIN_W_M3, PIN_EN_M3),
+  GigaBLDCDriver3PWM(PIN_U_M4, PIN_V_M4, PIN_W_M4, PIN_EN_M4),
+  GigaBLDCDriver3PWM(PIN_U_M5, PIN_V_M5, PIN_W_M5, PIN_EN_M5)
+};
+#endif
+
+#ifdef DRIVER_PORTENTA
+#include "portenta_driver.h"
+PortentaDriver3PWM drivers[] = {
+  PortentaDriver3PWM(PIN_U_M1, PIN_V_M1, PIN_W_M1, PIN_EN_M1),
+  PortentaDriver3PWM(PIN_U_M2, PIN_V_M2, PIN_W_M2, PIN_EN_M2),
+  PortentaDriver3PWM(PIN_U_M3, PIN_V_M3, PIN_W_M3, PIN_EN_M3),
+  PortentaDriver3PWM(PIN_U_M4, PIN_V_M4, PIN_W_M4, PIN_EN_M4),
+  PortentaDriver3PWM(PIN_U_M5, PIN_V_M5, PIN_W_M5, PIN_EN_M5)
+};
+#endif
 
 BLDCMotor motors[] = {
   BLDCMotor(MOTOR_PP),
@@ -23,15 +50,29 @@ BLDCMotor motors[] = {
   BLDCMotor(MOTOR_PP)
 };
 
-MagneticSensorMT6701SSI sensors[] = {
-  MagneticSensorMT6701SSI(PIN_MAG_CS1),
-  MagneticSensorMT6701SSI(PIN_MAG_CS2),
-  MagneticSensorMT6701SSI(PIN_MAG_CS3),
-  MagneticSensorMT6701SSI(PIN_MAG_CS4),
-  MagneticSensorMT6701SSI(PIN_MAG_CS5),
+#ifdef SENSOR_MT6701
+#include "mt6701.h"
+SensorMT6701SSI sensors[] = {
+  SensorMT6701SSI(PIN_MAG_CS1),
+  SensorMT6701SSI(PIN_MAG_CS2),
+  SensorMT6701SSI(PIN_MAG_CS3),
+  SensorMT6701SSI(PIN_MAG_CS4),
+  SensorMT6701SSI(PIN_MAG_CS5),
 };
+#endif
 
-Commander command = Commander(RPC);
+#ifdef SENSOR_MT6835
+#include "mt6835.h"
+SensorMT6835 sensors[] = {
+  SensorMT6835(PIN_MAG_CS1),
+  SensorMT6835(PIN_MAG_CS2),
+  SensorMT6835(PIN_MAG_CS3),
+  SensorMT6835(PIN_MAG_CS4),
+  SensorMT6835(PIN_MAG_CS5),
+};
+#endif
+
+Commander command = Commander();
 
 void doMotor1(char* cmd) { command.motor(&motors[0], cmd); }
 void doMotor2(char* cmd) { command.motor(&motors[1], cmd); }
@@ -40,18 +81,28 @@ void doMotor4(char* cmd) { command.motor(&motors[3], cmd); }
 void doMotor5(char* cmd) { command.motor(&motors[4], cmd); }
 
 void setup() {
-  RPC.begin();
-  RPC.println("starting M4...");
+  Stream *stream = 0;
+  if (HAL_GetCurrentCPUID() == CM7_CPUID) {
+    Serial.begin(115200);
+    while (!Serial && millis() < 5000) {}
+    Serial.println("starting M7...");
+    stream = &Serial;
+  } else {
+    RPC.begin();
+    RPC.println("starting M4...");
+    stream = &RPC;
+  }
 
   SPI.begin();
 
-  SimpleFOCDebug::enable(&RPC);
+  command.com_port = stream;
+  SimpleFOCDebug::enable(stream);
 
   pinMode(PIN_LED, OUTPUT);
 
-  for (int i = 0; i < MOTORS; i++) {
-    RPC.print("initialize motor ");
-    RPC.println(i + 1);
+  for (const int& i : usedMotors) {
+    stream->print("initialize motor ");
+    stream->println(i + 1);
 
     sensors[i].init(&SPI);
 
@@ -79,7 +130,7 @@ void setup() {
 }
 
 void loop() {
-  for (int i = 0; i < MOTORS; i++) {
+  for (const int& i : usedMotors) {
     motors[i].loopFOC();
     motors[i].move();
   }
