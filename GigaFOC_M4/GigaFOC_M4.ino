@@ -43,11 +43,11 @@ PortentaDriver3PWM drivers[] = {
 #endif
 
 BLDCMotor motors[] = {
-  BLDCMotor(MOTOR_PP),
-  BLDCMotor(MOTOR_PP),
-  BLDCMotor(MOTOR_PP),
-  BLDCMotor(MOTOR_PP),
-  BLDCMotor(MOTOR_PP)
+  BLDCMotor(MOTOR_PP, MOTOR_R, MOTOR_KV, MOTOR_L),
+  BLDCMotor(MOTOR_PP, MOTOR_R, MOTOR_KV, MOTOR_L),
+  BLDCMotor(MOTOR_PP, MOTOR_R, MOTOR_KV, MOTOR_L),
+  BLDCMotor(MOTOR_PP, MOTOR_R, MOTOR_KV, MOTOR_L),
+  BLDCMotor(MOTOR_PP, MOTOR_R, MOTOR_KV, MOTOR_L)
 };
 
 #ifdef SENSOR_MT6701
@@ -93,7 +93,7 @@ void setup() {
     stream = &RPC;
   }
 
-  SPI.begin();
+  MAG_SPI.begin();
 
   command.com_port = stream;
   SimpleFOCDebug::enable(stream);
@@ -104,13 +104,15 @@ void setup() {
     stream->print("initialize motor ");
     stream->println(i + 1);
 
-    sensors[i].init(&SPI);
+    sensors[i].init(&MAG_SPI);
 
     drivers[i].voltage_power_supply = VOLTAGE_POWER_SUPPLY;
+    drivers[i].voltage_limit = VOLTAGE_POWER_SUPPLY / 3.0f;
     drivers[i].init();
 
     motors[i].voltage_sensor_align = VOLTAGE_SENSOR_ALIGN;
     motors[i].velocity_index_search = VELOCITY_INDEX_SEARCH;
+    motors[i].foc_modulation = FOCModulationType::SpaceVectorPWM;
     motors[i].controller = MotionControlType::angle;
 
     motors[i].linkSensor(&sensors[i]);

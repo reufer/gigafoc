@@ -39,6 +39,7 @@ class MbedDriver3PWM: public BLDCDriver
     if (!_isset(voltage_limit) || voltage_limit > voltage_power_supply)
       voltage_limit = voltage_power_supply;
 
+    initialized = true;
     return 0;
   }
 

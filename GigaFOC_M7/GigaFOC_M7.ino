@@ -10,9 +10,9 @@ void setup() {
 
 void loop() {
   while (RPC.available()) {
-    Serial.print((char) RPC.read());
+    Serial.print((char)RPC.read());
   }
   while (Serial.available()) {
-    RPC.print((char) Serial.read());
+    RPC.print((char)Serial.read());
   }
 }
